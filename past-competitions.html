@@ -112,6 +112,36 @@
         margin-bottom: 30px;
     }
 
+				.tm-nav-itemmmm:hover:after,
+				.tm-nav-itemmmm.active:after {
+						content: '';
+						width: 100%;
+						max-width: 300px;
+						height: 75px;
+						display: block;
+						margin-left: 10px;
+						position: absolute;
+						z-index:-1000;
+						border: 1px solid white;
+						margin-top: -65px;
+						margin-left: 30px;
+				}
+
+				.tm-nav-itemmmm:hover,
+				.tm-nav-itemmmm.active
+				{
+						background-color: white;
+						text-decoration: none;
+						color: #0CC;
+				}
+
+
+
+				.tm-nav-itemmmm {
+						list-style: none;
+						margin-bottom: 30px;
+				}
+
     .tm-nav-linkk,
     .tm-nav-linkk
     {
@@ -122,6 +152,26 @@
 
     .tm-nav-linkk {
       color: white;
+      background-color: transparent;
+      height: 75px;
+      width: 100%;
+      max-width: 300px;
+      display: flex;
+      align-items: center;
+      font-size: 1.4rem;
+      padding: 30px;
+      margin-left:60px;
+    }
+
+		.tm-nav-linkkk,
+    {
+        color: #0CC;
+        background-color: #0CC;
+        text-decoration: none;
+    }
+
+    .tm-nav-linkkk {
+      color: #0CC;
       background-color: transparent;
       height: 75px;
       width: 100%;
@@ -153,6 +203,16 @@
 			display: none;
 		}
 	}
+
+	.content-desktop {display: block;}
+	.content-mobile {display: none;}
+
+	@media screen and (max-width: 768px) {
+
+		.content-desktop {display: none;}
+		.content-mobile {display: block;}
+
+	}
 	</style>
 </head>
 <body>
@@ -164,7 +224,7 @@
 						<div class="tm-site-header priority" style = "margin:-80px -50px;position: fixed;background-color:#0CC" >
                 <h1 class="text-center" style ="padding:90px 40px 30px 40px">Hurricane Claw<br>96969X</h1>
             </div>
-            <nav class="tm-nav" id="tm-nav" style = "margin-top:150px;">
+            <nav class="tm-nav content-desktop" id="tm-nav" style = "margin-top:150px;">
 							<ul>
 									<li class="tm-nav-item"><a href="index.html" class="tm-nav-link">
 											<i class="fas"></i>
@@ -193,6 +253,58 @@
 										<a href="past-resources.html" class="tm-nav-linkk">Resources</a>
 									</div>
 									</li>
+
+									<li class="tm-nav-item"><a href="about.html" class="tm-nav-link">
+											<i class="far"></i>
+											About Us
+									</a></li>
+							</ul>
+            </nav>
+						<nav class="tm-nav content-mobile" id="tm-nav" style = "margin-top:150px;">
+							<ul>
+									<li class="tm-nav-item"><a href="index.html" class="tm-nav-link">
+											<i class="fas "></i>
+											Home
+									</a></li>
+
+
+									<li class="tm-nav-item"><a class="tm-nav-link">
+											<i class="fas "></i>
+											Tipping Point
+									</a></li>
+									<li class="tm-nav-itemmmm"><a href="members.html" class="tm-nav-linkk" style = "margin-left:30px">
+											<i class="fas "></i>
+											Members
+									</a></li>
+									<li class="tm-nav-itemmmm"><a href="competitions.html" class="tm-nav-linkk" style = "margin-left:30px">
+											<i class="fas "></i>
+											Competitions
+									</a></li>
+									<li class="tm-nav-itemmmm"><a href="resources.html" class="tm-nav-linkk" style = "margin-left:30px">
+											<i class="fas "></i>
+											Resources
+									</a></li>
+
+									<li class="tm-nav-item"><a class="tm-nav-link">
+											<i class="fas "></i>
+											Past Seasons
+									</a></li>
+									<li class="tm-nav-itemmmm"><a href="past-members.html"class="tm-nav-linkk"style = "margin-left:30px">
+											<i class="fas "></i>
+											Members
+									</a></li>
+									<li class="tm-nav-itemmmm active"><a href="past-competitions.html"class="tm-nav-linkk"style = "margin-left:30px;color:#0CC">
+											<i class="fas "></i>
+											Competitions
+									</a></li>
+									<li class="tm-nav-itemmmm"><a href="programs.html"class="tm-nav-linkk"style = "margin-left:30px">
+											<i class="fas "></i>
+											Programs
+									</a></li>
+									<li class="tm-nav-itemmmm"><a href="past-resources.html"class="tm-nav-linkk"style = "margin-left:30px">
+											<i class="fas "></i>
+											Resources
+									</a></li>
 
 									<li class="tm-nav-item"><a href="about.html" class="tm-nav-link">
 											<i class="far"></i>
