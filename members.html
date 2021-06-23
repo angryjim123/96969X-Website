@@ -45,8 +45,8 @@
         margin-bottom: 30px;
     }
 
-    .tm-nav-itemm:hover:after,
-    .tm-nav-itemm.active:after {
+
+		.tm-nav-itemm:hover:after{
         content: '';
         width: 100%;
         max-width: 300px;
@@ -58,6 +58,19 @@
         border: 1px solid white;
         margin-top: -290px;
     }
+
+		.tm-nav-itemm.active:before{
+		 content: '';
+		 width: 100%;
+		 max-width: 300px;
+		 height: 75px;
+		 display: block;
+		 margin-left: 10px;
+		 position: absolute;
+		 z-index: 1;
+		 border: 1px solid white;
+		 margin-top: 10px;
+	 }
 
     .tm-nav-itemmm:hover:after,
     .tm-nav-itemmm.active:after {
@@ -111,6 +124,10 @@
 
     .tm-nav-linkk i { margin-right: 37px; }
 
+		.priority {
+			z-index: 100;
+		}
+
     </style>
 </head>
 <body>
@@ -119,17 +136,17 @@
             <button class="navbar-toggler" type="button" aria-label="Toggle navigation">
                 <i class="fas fa-bars"></i>
             </button>
-            <div class="tm-site-header" style = "margin:45px 0px" >
-                <h1 class="text-center">Hurricane Claw 96969X</h1>
+            <div class="tm-site-header priority" style = "margin:-80px -50px;position: fixed;background-color:#0CC" >
+                <h1 class="text-center" style ="padding:90px 40px 30px 40px">Hurricane Claw<br>96969X</h1>
             </div>
-            <nav class="tm-nav" id="tm-nav">
+            <nav class="tm-nav" id="tm-nav" style = "margin-top:150px;">
 							<ul>
 									<li class="tm-nav-item"><a href="index.html" class="tm-nav-link">
-											<i class="fas"></i>
+											<i class="fas "></i>
 											Home
 									</a></li>
 
-									<li class=" dropdown tm-nav-itemm"><a class="tm-nav-link">
+									<li class=" dropdown tm-nav-itemm active bordering"><a class="tm-nav-link">
 											<i class="fas"></i>
 											Tipping Point
 									</a>
