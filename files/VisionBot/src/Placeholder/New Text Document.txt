@@ -1,0 +1,733 @@
+/*----------------------------------------------------------------------------*/
+/*                                                                            */
+/*    Module:       main.cpp                                                  */
+/*    Author:       C:\Users\User                                             */
+/*    Created:      Wed Dec 16 2020                                           */
+/*    Description:  V5 project                                                */
+/*                                                                            */
+/*----------------------------------------------------------------------------*/
+
+// ---- START VEXCODE CONFIGURED DEVICES ----
+// Robot Configuration:
+// [Name]               [Type]        [Port(s)]
+// Controller1          controller
+// RightFrontWheel      motor         15
+// RightBackWheel       motor         7
+// LeftFrontWheel       motor         20
+// LeftBackWheel        motor         10
+// FrontSpin            motor         6
+// BackSpin             motor         12
+// LeftClaw             motor         17
+// RightClaw            motor         16
+// Vision5              vision        1
+// LineTrackerB         line          B
+// Controller2          controller
+// Optical2             optical       2
+// ---- END VEXCODE CONFIGURED DEVICES ----
+
+#include "vex.h"
+#include <iostream>
+#include <math.h>
+#include <cmath> //std::abs
+
+using namespace vex;
+
+motor_group allDrive (LeftFrontWheel, LeftBackWheel, RightFrontWheel, RightBackWheel);
+
+int myTaskCallBack()
+{
+  int count = 0;
+  while(true)
+  {
+    if(Optical2.isNearObject() && Controller1.ButtonR1.pressing() && Controller1.ButtonL1.pressing())
+    {
+      if(count <= 10)
+      {
+        allDrive.spin(forward);
+      }
+
+      else if(count <= 59)
+      {
+        allDrive.stop();
+      }
+      else if(count <= 60)
+      {
+        count = 0;
+        allDrive.stop();
+      }
+      count++;
+      task::sleep(20);
+    }
+  }
+  return 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+float wheel_d = 4.3; //inches
+float itc = 2.54; //1 inch = 2.54 cm
+float circumference = wheel_d * itc * M_PI; //in cm
+
+
+///////////////////////////////////////////////////
+int pctdivider = 1;
+
+int maxTurnIntegral = 300; // These cap the integrals
+int maxIntegral = 300;
+int integralBound = 3; //If error is outside the bounds, then apply the integral. This is a buffer with +-integralBound degrees
+
+int error = 0; //SensorValue - Desired Value : Positional
+int prevError = 0; //Position 20 ms ago
+int derivative = 0; //Error - prevError : Speed
+int totalError = 0; //totalError = totalError + error
+
+int turnError = 0; //SensorValue - Desired Value : Positional
+int turnPrevError = 0; //Position 20 ms ago
+int turnDerivative = 0; //Error - prevError : Speed
+int turnTotalError = 0; //totalError = totalError + error
+
+int basepower = 20;
+
+//Pasted from a C++ resource
+double signnum_c(double x) {
+  if (x > 0.0) return 1.0;
+  if (x < 0.0) return -1.0;
+  return x;
+}
+
+int drivePID(float kP, float kI, float kD, float turnkP, float turnkI, float turnkD, float desiredValue, float desiredTurnValue, bool resetDriveSensors, bool enableDriverPID, int basepower)
+{
+  while(enableDriverPID)
+  {
+    if(resetDriveSensors)
+    {
+      resetDriveSensors = false;
+      RightFrontWheel.setPosition(0,degrees);
+      LeftFrontWheel.setPosition(0,degrees);
+      RightBackWheel.setPosition(0,degrees);
+      LeftBackWheel.setPosition(0,degrees);
+    }
+
+    //Positions of motors
+    int leftFrontMotorPosition = LeftFrontWheel.position(degrees);
+    int rightFrontMotorPosition = RightFrontWheel.position(degrees);
+    int leftBackMotorPosition = LeftBackWheel.position(degrees);
+    int rightBackMotorPosition = RightBackWheel.position(degrees);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //Lateral Movement PID
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //Average positions of all four motors.
+    int averagePosition = (leftFrontMotorPosition + rightFrontMotorPosition + leftBackMotorPosition + rightBackMotorPosition) / 4;
+
+    //Potential
+    error = desiredValue - averagePosition;
+
+    //Derivative
+    derivative = error - prevError;
+
+    //Integral
+    //
+    //totalError += error;
+    if(abs(error) < integralBound){
+    totalError+=error;
+    }  else {
+    totalError = 0;
+    }
+
+    totalError = abs(totalError) > maxIntegral ? signnum_c(totalError) * maxIntegral : totalError;
+
+    double lateralMotorPower = (error * kP + derivative * kD + totalError * kI) / pctdivider;
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //Turning Movement PID
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //Average positions of all four motors.
+    int turnDifference = (( leftFrontMotorPosition + leftBackMotorPosition ) - (rightFrontMotorPosition + rightBackMotorPosition))/4;
+
+    //Potential
+    turnError = desiredTurnValue - turnDifference;
+
+    //Derivative
+    turnDerivative = turnError - turnPrevError;
+
+    //Integral
+    //
+    //turnTotalError += turnError;
+    if(abs(error) < integralBound){
+    turnTotalError+=turnError;
+    }  else {
+    turnTotalError = 0;
+    }
+
+    turnTotalError = abs(turnTotalError) > maxIntegral ? signnum_c(turnTotalError) * maxIntegral : turnTotalError;
+
+    double turnMotorPower = (turnError * turnkP + turnDerivative * turnkD + turnTotalError * turnkI) / pctdivider;
+
+    int dirr;
+    int dirl;
+
+    if(lateralMotorPower - turnMotorPower >= 0)
+    {
+      dirr = 1;
+    }
+    else
+    {
+      dirr = -1;
+    }
+
+    if(lateralMotorPower + turnMotorPower >= 0)
+    {
+      dirl = 1;
+    }
+    else
+    {
+      dirl = -1;
+    }
+
+    LeftFrontWheel.spin(forward, dirl * std::max(std::abs(basepower),std::abs(lateralMotorPower + turnMotorPower)), pct);
+    RightFrontWheel.spin(forward, dirr * std::max(std::abs(basepower),std::abs(lateralMotorPower - turnMotorPower)), pct);
+    LeftBackWheel.spin(forward, dirl * std::max(std::abs(basepower),std::abs(lateralMotorPower + turnMotorPower)), pct);
+    RightBackWheel.spin(forward, dirr * std::max(std::abs(basepower),std::abs(lateralMotorPower - turnMotorPower)), pct);
+
+    prevError = error;
+    turnPrevError = turnError;
+    if(std::abs(desiredValue) > 1 && std::abs(desiredValue - averagePosition) < 5)
+    {
+      enableDriverPID = false;
+    }
+    else if(std::abs(desiredTurnValue) > 1 && std::abs(turnDifference - desiredTurnValue) < 5)
+    {
+      enableDriverPID = false;
+    }
+
+    task::sleep(20);
+  }
+
+  LeftFrontWheel.stop();
+  RightFrontWheel.stop();
+  LeftBackWheel.stop();
+  RightBackWheel.stop();
+  return 1;
+}
+
+float converter(float number)
+{
+  return number / circumference * 360;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+double startTimeA = Brain.timer(seconds);
+
+double startTimeSpin = Brain.timer(seconds);
+
+event checkRed = event();
+
+// A global instance of competition
+competition Competition;
+
+// define your global instances of motors and other devices here
+
+/*---------------------------------------------------------------------------*/
+/*                          Pre-Autonomous Functions                         */
+/*                                                                           */
+/*  You may want to perform some actions before the competition starts.      */
+/*  Do them in the following function.  You must return from this function   */
+/*  or the autonomous and usercontrol tasks will not be started.  This       */
+/*  function is only called once after the V5 has been powered on and        */
+/*  not every time that the robot is disabled.                               */
+/*---------------------------------------------------------------------------*/
+
+void pre_auton(void) {
+  // Initializing Robot Configuration. DO NOT REMOVE!
+  vexcodeInit();
+
+  // All activities that occur before the competition starts
+  // Example: clearing encoders, setting servo positions, ...
+}
+
+
+double threshold = 1.0;
+
+/**
+ * Allows the motor to go in a 1/log scale.
+ */
+float motorvalue(float t)
+{
+  return 1 / (log10(100.0 - 90.0 * t / threshold ));
+}
+
+float turnvalue(float t)
+{
+  return 1 / (log10(100.0 - 90.0 * t / threshold ));
+}
+
+void motordecision()
+{
+  int rightwheelinputs;
+  int leftwheelinputs;
+  float factor;
+  float constantvalue = 1.1;
+  double currentTimeSpin;
+  int previous = -1;
+  double spinfactor;
+  //double spinfactor = 1;
+
+
+  double currentTime = Brain.timer(seconds) - startTimeA;
+  if(currentTime < threshold && (Controller1.Axis3.position(percent) >= 60 || Controller1.Axis3.position(percent) <= -60))
+  {
+    float inputime = currentTime;
+    factor = motorvalue(inputime);
+  }
+  else
+  {
+    factor = 1;
+  }
+
+  if(Controller1.Axis1.position(percent) > 0)
+  {
+
+    if(previous != 1)
+    {
+      startTimeSpin = Brain.timer(seconds);
+      previous =1;
+    }
+    currentTimeSpin = Brain.timer(seconds) - startTimeSpin;
+    spinfactor = turnvalue(currentTimeSpin);
+
+
+    if(Controller1.Axis3.position(percent) != 0)
+    {
+      rightwheelinputs = Controller1.Axis3.position(percent) - spinfactor * constantvalue * std::min(Controller1.Axis1.position(percent),Controller1.Axis3.position(percent));
+      leftwheelinputs = Controller1.Axis3.position(percent);
+    }
+    else
+    {
+      leftwheelinputs = Controller1.Axis1.position(percent);
+      rightwheelinputs = -Controller1.Axis1.position(percent);
+    }
+
+
+  }
+  else if(Controller1.Axis1.position(percent) < 0)
+  {
+
+    if(previous != 2)
+    {
+      startTimeSpin = Brain.timer(seconds);
+      previous = 2;
+    }
+    currentTimeSpin = Brain.timer(seconds) - startTimeSpin;
+    spinfactor = turnvalue(currentTimeSpin);
+
+    if(Controller1.Axis3.position(percent) != 0)
+    {
+      rightwheelinputs = Controller1.Axis3.position(percent);
+      leftwheelinputs = Controller1.Axis3.position(percent) - spinfactor * constantvalue * std::max(Controller1.Axis1.position(percent),Controller1.Axis3.position(percent));
+    }
+    else
+    {
+      leftwheelinputs = Controller1.Axis1.position(percent);
+      rightwheelinputs = -Controller1.Axis1.position(percent);
+    }
+
+
+  }
+  else
+  {
+    rightwheelinputs = Controller1.Axis3.position(percent);
+    leftwheelinputs = Controller1.Axis3.position(percent);
+  }
+
+  float rightinput = rightwheelinputs * factor;
+  float leftinput = leftwheelinputs * factor;
+
+  RightBackWheel.spin(directionType::fwd, rightinput, velocityUnits::pct);
+  RightFrontWheel.spin(directionType::fwd, rightinput, velocityUnits::pct);
+  LeftBackWheel.spin(directionType::fwd, leftinput, velocityUnits::pct);
+  LeftFrontWheel.spin(directionType::fwd, leftinput, velocityUnits::pct);
+}
+
+/**
+ * Cotinues to circulate the balls until a red one is spotted FOR AUTONOMOUS
+ */
+void hadRedCallBack3(){
+  bool out = true;
+  RightClaw.spin(forward);
+  LeftClaw.spin(forward);
+  FrontSpin.spin(forward);
+  BackSpin.spin(forward);
+  int count = 0;
+  while(out)
+  {
+    if(count <= 10)
+    {
+      allDrive.spin(forward);
+    }
+
+    else if(count <= 59)
+    {
+      allDrive.stop();
+    }
+    /*
+    else if(count <= 40)
+    {
+      allDrive.spin(reverse);
+    }
+    */
+    else if(count <= 60)
+    {
+      count = 0;
+      allDrive.stop();
+    }
+
+    Vision5.takeSnapshot(Vision5__REDBOX);
+    if (Vision5.objectCount > 0)
+    {
+      int max = 0;
+      //Loop through all "Red" objects and spotting the one that has the largest width.
+      //If largest width is geater 150, then a red ball is spotted. It will then escape the while loop.
+      for(int x = 0 ; x < Vision5.objectCount ; x++)
+      {
+        if(Vision5.objects[x].width > max)
+        {
+          max = Vision5.objects[x].width;
+        }
+      }
+      if(max >= 150)
+      {
+      out = false;
+      }
+    }
+    count++;
+    task::sleep(20);
+  }
+
+  //Circulation mechanism continues to shoot balls up because there might still be a blue ball above the spotted red ball.
+  //In the case where there are no blue balls above, the circulation mechanism still will not shoot out the red ball.
+  //Claws spin in reverse to make sure blue ball does not come out while the robot exits the tower.
+  FrontSpin.rotateFor(0.5,rotationUnits::rev,false);
+  BackSpin.rotateFor(0.5,rotationUnits::rev,false);
+  LeftClaw.rotateFor(-0.8,rotationUnits::rev,false);
+  RightClaw.rotateFor(-0.8,rotationUnits::rev,true);
+
+  return;
+}
+
+/**
+ * Cotinues to circulate the balls until a red one is spotted FOR AUTONOMOUS
+ */
+void hadRedCallBack2(){
+  bool out = true;
+  RightClaw.spin(forward);
+  LeftClaw.spin(forward);
+  FrontSpin.spin(forward);
+  BackSpin.spin(forward);
+  while(out)
+  {
+    Vision5.takeSnapshot(Vision5__REDBOX);
+    if (Vision5.objectCount > 0)
+    {
+      int max = 0;
+      //Loop through all "Red" objects and spotting the one that has the largest width.
+      //If largest width is geater 150, then a red ball is spotted. It will then escape the while loop.
+      for(int x = 0 ; x < Vision5.objectCount ; x++)
+      {
+        if(Vision5.objects[x].width > max)
+        {
+          max = Vision5.objects[x].width;
+        }
+      }
+      if(max >= 150)
+      {
+      out = false;
+      }
+    }
+    task::sleep(20);
+  }
+
+  //Circulation mechanism continues to shoot balls up because there might still be a blue ball above the spotted red ball.
+  //In the case where there are no blue balls above, the circulation mechanism still will not shoot out the red ball.
+  //Claws spin in reverse to make sure blue ball does not come out while the robot exits the tower.
+  FrontSpin.rotateFor(0.5,rotationUnits::rev,false);
+  BackSpin.rotateFor(0.5,rotationUnits::rev,false);
+  LeftClaw.rotateFor(-0.8,rotationUnits::rev,false);
+  RightClaw.rotateFor(-0.8,rotationUnits::rev,true);
+
+  return;
+}
+
+
+/**
+ * Cotinues to circulate the balls until a red one is spotted and exited from the back FOR DRIVER
+ */
+void hasRedCallback() {
+  RightClaw.spin(forward);
+  LeftClaw.spin(forward);
+  Vision5.takeSnapshot(Vision5__REDBOX);
+  if (Vision5.objectCount > 0) {
+    int max = 0;
+    //Loop through all "Red" objects and spotting the one that has the largest width.
+    //If largest width is geater 150, then a red ball is spotted. It will then escape the while loop.
+    for(int x = 0 ; x < Vision5.objectCount ; x++)
+    {
+      if(Vision5.objects[x].width > max)
+      {
+        max = Vision5.objects[x].width;
+      }
+    }
+    if(max >= 150)
+    {
+      //If a red ball is spotted, it is exited through the back.
+      FrontSpin.spin(forward);
+      BackSpin.spin(reverse);
+    }
+    else
+    {
+      //If no red ball is spotted, circulation mechanism continues.
+      FrontSpin.spin(forward);
+      BackSpin.spin(forward);
+    }
+  }
+  else
+  {
+    //This part is when there are no red objects within the view. For instance, when blue ball blocks the vision sensor. Thus, it continues to circulate.
+    FrontSpin.spin(forward);
+    BackSpin.spin(forward);
+  }
+}
+
+void ballreach()
+{
+  while(LineTrackerB.value( analogUnits::range12bit ) > 2942)
+  {
+    BackSpin.spin(forward);
+    FrontSpin.spin(forward);
+  }
+  BackSpin.stop();
+  FrontSpin.stop();
+}
+
+void execution()
+{
+  if(Controller1.Axis3.position(percent) == 0)
+  {
+    startTimeA = Brain.timer(seconds);
+  }
+  motordecision();
+
+
+  //When the robot is next to a tower and ready to circulate balls. Completely Automatic.
+  //Takes greatest priority other than wheel movements.
+  if(Controller1.ButtonLeft.pressing())
+  {
+    checkRed.broadcastAndWait();
+  }
+  else
+  {
+    //Manually controlling the upperward / downward movement
+    if (Controller1.ButtonR1.pressing())
+    {
+      FrontSpin.spin(forward);
+      BackSpin.spin(forward);
+    }
+    else if (Controller1.ButtonR2.pressing())
+    {
+      FrontSpin.spin(reverse);
+      BackSpin.spin(reverse);
+    }
+    else if(Controller1.ButtonY.pressing())
+    {
+      FrontSpin.spin(forward);
+      BackSpin.spin(reverse);
+    }
+    else
+    {
+      FrontSpin.stop();
+      BackSpin.stop();
+    }
+    //Manually controlling the inward / outward movement
+    if (Controller1.ButtonL1.pressing())
+    {
+      RightClaw.spin(forward);
+      LeftClaw.spin(forward);
+    }
+    else if (Controller1.ButtonL2.pressing())
+    {
+      RightClaw.spin(reverse);
+      LeftClaw.spin(reverse);
+    }
+    else
+    {
+      RightClaw.stop();
+      LeftClaw.stop();
+    }
+  }
+}
+
+/*---------------------------------------------------------------------------*/
+/*                                                                           */
+/*                              Autonomous Task                              */
+/*                                                                           */
+/*  This task is used to control your robot during the autonomous phase of   */
+/*  a VEX Competition.                                                       */
+/*                                                                           */
+/*  You must modify the code to add your own robot specific commands here.   */
+/*---------------------------------------------------------------------------*/
+
+
+void autonomous(void) {
+  BackSpin.setVelocity(100,percent);
+  FrontSpin.setVelocity(90,percent);
+  LeftFrontWheel.setVelocity(100,percent);
+  LeftBackWheel.setVelocity(100,percent);
+  RightFrontWheel.setVelocity(100,percent);
+  RightBackWheel.setVelocity(100,percent);
+  LeftClaw.setVelocity(70,percent);
+  RightClaw.setVelocity(70,percent);
+
+  FrontSpin.spinFor(forward,180,degrees,false);
+  BackSpin.spinFor(forward,180,degrees,false);
+  LeftClaw.spin(forward);
+  RightClaw.spin(forward);
+
+  float desiredValue;
+  float desiredTurnValue;
+  bool resetDriveSensors = true;
+  bool enableDriverPID = true;
+  int base = 20;
+
+  BackSpin.spinFor(reverse,0.5*360,degrees,false);
+  FrontSpin.spinFor(reverse,0.5*360,degrees,true);
+
+  //BackSpin.spinFor(forward,1.6*360,degrees,false);
+  //FrontSpin.spinFor(forward,1.6*360,degrees,true);
+
+  ballreach();
+
+  //////////////////////////////////////////////////////////
+
+  float forward1 = 30.0;
+
+  desiredValue = converter(forward1);
+  desiredTurnValue = 0;
+  drivePID(0.2,0,0.2, 0,0,0, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,25);
+
+  /////////////////////////////////////////////////////////
+
+  float turn1 = -130;
+
+  desiredValue = 0;
+  desiredTurnValue = turn1;
+  drivePID(0,0,0, 0.25,0,0, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,10);
+
+  LeftClaw.spin(forward);
+  RightClaw.spin(forward);
+
+  FrontSpin.spinFor(forward,1 * 360,degrees,false);
+  BackSpin.spinFor(forward,1 * 360, degrees,false);
+
+  float forward2 = 7.0;
+
+  desiredValue = converter(forward2);
+  desiredTurnValue = 0;
+  drivePID(0.25,0,0.15, 0,0,0, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,25);
+
+  hadRedCallBack2();
+
+  float backward1 = -150.0;
+
+  desiredValue = converter(backward1);
+  desiredTurnValue = 0;
+  drivePID(0.15,0,0.07, 0,0,0, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,-40);
+
+  FrontSpin.spinFor(forward,2 * 360,degrees,false);
+  BackSpin.spinFor(reverse,2 * 360, degrees,true);
+
+  LeftClaw.stop();
+  RightClaw.stop();
+
+  float turn2 = -255;
+
+  desiredValue = 0;
+  desiredTurnValue = turn2;
+  drivePID(0,0,0, 0.2,0,0.15, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,8);
+
+  LeftClaw.spin(forward);
+  RightClaw.spin(forward);
+
+  float forward3 = 83;
+
+  desiredValue = converter(forward3);
+  desiredTurnValue = 0;
+  drivePID(0.22,0,0.1, 0,0,0, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,base);
+
+  hadRedCallBack3();
+
+  LeftClaw.spin(reverse);
+  RightClaw.spin(reverse);
+
+  float backward2 = -100.0;
+
+  desiredValue = converter(backward2);
+  desiredTurnValue = 0;
+  drivePID(0.08,0,0, 0,0,0, desiredValue, desiredTurnValue, resetDriveSensors, enableDriverPID,-40);
+
+  task::sleep(2000);
+
+  LeftClaw.stop();
+  RightClaw.stop();
+
+}
+
+/*---------------------------------------------------------------------------*/
+/*                                                                           */
+/*                              User Control Task                            */
+/*                                                                           */
+/*  This task is used to control your robot during the user control phase of */
+/*  a VEX Competition.                                                       */
+/*                                                                           */
+/*  You must modify the code to add your own robot specific commands here.   */
+/*---------------------------------------------------------------------------*/
+
+void usercontrol(void) {
+  // User control code here, inside the loop
+  BackSpin.setVelocity(100,percent);
+  FrontSpin.setVelocity(80,percent);
+  LeftFrontWheel.setVelocity(70,percent);
+  LeftBackWheel.setVelocity(70,percent);
+  RightFrontWheel.setVelocity(70,percent);
+  RightBackWheel.setVelocity(70,percent);
+  LeftClaw.setVelocity(90,percent);
+  RightClaw.setVelocity(90,percent);
+
+  checkRed(hasRedCallback);
+
+  Optical2.setLight(ledState::on);
+
+  task myTask = task(myTaskCallBack);
+
+  while(true)
+  {
+    execution();
+  }
+}
+
+//
+// Main will set up the competition functions and callbacks.
+//
+int main() {
+  // Set up callbacks for autonomous and driver control periods.
+  Competition.autonomous(autonomous);
+  Competition.drivercontrol(usercontrol);
+
+  // Run the pre-autonomous function.
+  pre_auton();
+
+  // Prevent main from exiting with an infinite loop.
+  while (true) {
+    wait(100, msec);
+  }
+}
